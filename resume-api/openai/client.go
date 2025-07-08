@@ -31,7 +31,7 @@ func AnalyzeResume(jobDescription string, resumes map[string]string) ([]ResumeAn
 	fmt.Printf("resumes %s\n", resumes)
 	for name, content := range resumes {
 		fmt.Printf("name: %s, content: %s\n", name, content)
-		prompt := "Given the following job description: '" + jobDescription + "' and the following resume: '" + content + "', analyze the resume for match percentage, strengths, improvements, and missing skills. Respond in JSON with fields: matchPercentage, insights (with strengths, improvements, missingSkills as arrays of strings)."
+		prompt := "Given the following job description: '" + jobDescription + "' and the following resume: '" + content + "', analyze the resume for match percentage, strengths, improvements, and missing skills. Respond in JSON with fields: matchPercentage, insights (with strengths, improvements, missingSkills as arrays of strings). NO MARKDOWN JUST PLAIN JSON"
 		resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 			Model: openai.GPT3Dot5Turbo,
 			Messages: []openai.ChatCompletionMessage{

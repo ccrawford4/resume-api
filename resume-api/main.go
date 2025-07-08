@@ -5,18 +5,25 @@ import (
 	"resume-api/openai"
 	"resume-api/parser"
 
+	"github.com/gin-contrib/cors"
+
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	r := gin.Default()
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"*"}
+	r.Use(cors.New(config))
 
 	r.GET("/", func(c *gin.Context) {
 		c.String(200, "hello world")
 	})
 
 	r.POST("/", func(c *gin.Context) {
+		fmt.Printf("NEW REQUEST")
 		resumeContent := parser.ParseResume()
+		fmt.Printf("resumeContent: %s\n", resumeContent)
 		jobDescription := `
 Job Title: Cloud Infrastructure Engineer (Entry-Level)
 Location: San Francisco, CA (Hybrid or Remote Eligible)
