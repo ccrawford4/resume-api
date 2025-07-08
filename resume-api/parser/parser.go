@@ -29,7 +29,6 @@ func ParseResume() map[string]string {
 			fmt.Printf("Error reading file %s: %v\n", file.Name(), err)
 			continue
 		}
-		fmt.Printf("Contents of %s:\n%s\n", file.Name(), string(content))
 		result[file.Name()] = string(content)
 	}
 
