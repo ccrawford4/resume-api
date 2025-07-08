@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
+	"resume-api/gcloud"
 	"resume-api/openai"
-	"resume-api/parser"
 
 	"github.com/gin-contrib/cors"
 
@@ -21,9 +21,12 @@ func main() {
 	})
 
 	r.POST("/", func(c *gin.Context) {
-		fmt.Printf("NEW REQUEST")
-		resumeContent := parser.ParseResume()
-		fmt.Printf("resumeContent: %s\n", resumeContent)
+		resumeContent, err := gcloud.DownloadAndParseAllPDFs("user-resumes-hs-hackathon")
+		if err != nil {
+			c.JSON(500, gin.H{"success": false, "error": err.Error()})
+			return
+		}
+		fmt.Printf("resumeContent: %v\n", resumeContent)
 		jobDescription := `
 Job Title: Cloud Infrastructure Engineer (Entry-Level)
 Location: San Francisco, CA (Hybrid or Remote Eligible)
