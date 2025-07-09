@@ -84,7 +84,7 @@ func (gc *GoogleCloudClient) DownloadFile(bucketName, objectName string) (*parse
 	if err != nil {
 		return nil, fmt.Errorf("failed to get bucket attributes: %w", err)
 	}
-	createdAt := attrs.Created
+	createdAt := attrs.Created.Format(time.RFC3339)
 
 	// Read the file content
 	fileContent, err := io.ReadAll(rc)
@@ -97,7 +97,7 @@ func (gc *GoogleCloudClient) DownloadFile(bucketName, objectName string) (*parse
 		Name:      objectName,
 		Content:   fileContent,
 		URL:       url,
-		CreatedAt: createdAt.Local().Format("January 2, 2006 at 3:04 PM"), // User-friendly format
+		CreatedAt: createdAt,
 	}, nil
 }
 
