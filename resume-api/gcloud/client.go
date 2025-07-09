@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"resume-api/parser"
+	"time"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/option"
@@ -58,40 +59,64 @@ func (gc *GoogleCloudClient) ListBucketFiles(bucketName string) ([]string, error
 }
 
 // DownloadFile downloads a file from GCS to the local resumes directory
-func (gc *GoogleCloudClient) DownloadFile(bucketName, objectName, destDir string) error {
-	rc, err := gc.storageClient.Bucket(bucketName).Object(objectName).NewReader(gc.ctx)
+func (gc *GoogleCloudClient) DownloadFile(bucketName, objectName string) (*parser.File, error) {
+	bucket := gc.storageClient.Bucket(bucketName)
+	fileObject := bucket.Object(objectName)
+
+	// Get the reader for the objeect
+	rc, err := fileObject.NewReader(gc.ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create object reader: %w", err)
+		return nil, fmt.Errorf("failed to create object reader: %w", err)
 	}
 	defer rc.Close()
 
-	localPath := filepath.Join(destDir, objectName)
-	outFile, err := os.Create(localPath)
+	// Get the presigned URL for the object
+	url, err := bucket.SignedURL(objectName, &storage.SignedURLOptions{
+		Method:  "GET",
+		Expires: time.Now().Add(1 * time.Hour), // URL valid for 1 hour
+	})
 	if err != nil {
-		return fmt.Errorf("failed to create local file: %w", err)
+		return nil, fmt.Errorf("failed to get signed URL: %w", err)
 	}
-	defer outFile.Close()
 
-	_, err = io.Copy(outFile, rc)
+	// Get the created at date of the object
+	attrs, err := fileObject.Attrs(gc.ctx)
 	if err != nil {
-		return fmt.Errorf("failed to copy file content: %w", err)
+		return nil, fmt.Errorf("failed to get bucket attributes: %w", err)
 	}
-	return nil
+	createdAt := attrs.Created
+
+	// Read the file content
+	fileContent, err := io.ReadAll(rc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read object content: %w", err)
+	}
+
+	// Return the file object
+	return &parser.File{
+		Name:      objectName,
+		Content:   fileContent,
+		URL:       url,
+		CreatedAt: createdAt.Local().Format("January 2, 2006 at 3:04 PM"), // User-friendly format
+	}, nil
 }
 
-func (gc *GoogleCloudClient) DownloadAndParseAllPDFs(bucketName string) (map[string]string, error) {
+func (gc *GoogleCloudClient) DownloadAllPDFs(bucketName string) ([]*parser.File, error) {
 	files, err := gc.ListBucketFiles(bucketName)
 	if err != nil {
 		return nil, err
 	}
-	destDir := "../resumes"
-	os.MkdirAll(destDir, 0755)
+
+	var fileObjects []*parser.File
 	for _, file := range files {
 		if filepath.Ext(file) == ".pdf" {
-			if err := gc.DownloadFile(bucketName, file, destDir); err != nil {
-				fmt.Printf("Failed to download %s: %v\n", file, err)
+			newFile, err := gc.DownloadFile(bucketName, file)
+			if err != nil {
+				return nil, fmt.Errorf("error downloading file %s: %w", file, err)
 			}
+			fileObjects = append(fileObjects, newFile)
 		}
 	}
-	return parser.ParseResume(), nil
+
+	return fileObjects, nil
 }
