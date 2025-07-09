@@ -9,9 +9,10 @@ import (
 )
 
 type File struct {
-	Name    string
-	Content []byte
-	URL     string
+	Name      string
+	Content   []byte
+	URL       string
+	CreatedAt string
 }
 
 type ResumeEntry struct {

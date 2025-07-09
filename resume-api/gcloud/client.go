@@ -60,21 +60,31 @@ func (gc *GoogleCloudClient) ListBucketFiles(bucketName string) ([]string, error
 
 // DownloadFile downloads a file from GCS to the local resumes directory
 func (gc *GoogleCloudClient) DownloadFile(bucketName, objectName string) (*parser.File, error) {
+	bucket := gc.storageClient.Bucket(bucketName)
+	fileObject := bucket.Object(objectName)
+
 	// Get the reader for the objeect
-	rc, err := gc.storageClient.Bucket(bucketName).Object(objectName).NewReader(gc.ctx)
+	rc, err := fileObject.NewReader(gc.ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create object reader: %w", err)
 	}
 	defer rc.Close()
 
 	// Get the presigned URL for the object
-	url, err := gc.storageClient.Bucket(bucketName).SignedURL(objectName, &storage.SignedURLOptions{
+	url, err := bucket.SignedURL(objectName, &storage.SignedURLOptions{
 		Method:  "GET",
 		Expires: time.Now().Add(1 * time.Hour), // URL valid for 1 hour
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get signed URL: %w", err)
 	}
+
+	// Get the created at date of the object
+	attrs, err := fileObject.Attrs(gc.ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bucket attributes: %w", err)
+	}
+	createdAt := attrs.Created
 
 	// Read the file content
 	fileContent, err := io.ReadAll(rc)
@@ -84,9 +94,10 @@ func (gc *GoogleCloudClient) DownloadFile(bucketName, objectName string) (*parse
 
 	// Return the file object
 	return &parser.File{
-		Name:    objectName,
-		Content: fileContent,
-		URL:     url,
+		Name:      objectName,
+		Content:   fileContent,
+		URL:       url,
+		CreatedAt: createdAt.Local().Format("January 2, 2006 at 3:04 PM"), // User-friendly format
 	}, nil
 }
 

@@ -58,7 +58,7 @@ func AnalyzeResume(jobDescription string, resumes []*parser.File) ([]ResumeAnaly
 		results = append(results, ResumeAnalysis{
 			ID:              fmt.Sprintf("%d", id),
 			Name:            name,
-			UploadDate:      "2024-01-15", // Placeholder
+			UploadDate:      resume.CreatedAt,
 			FileUrl:         resume.URL,
 			MatchPercentage: analysis.MatchPercentage,
 			Insights:        analysis.Insights,
