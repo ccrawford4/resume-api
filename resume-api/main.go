@@ -5,36 +5,19 @@ import (
 	"fmt"
 	"resume-api/gcloud"
 	"resume-api/openai"
+	"resume-api/parser"
 
 	"github.com/gin-contrib/cors"
 
 	"github.com/gin-gonic/gin"
 )
 
-func main() {
-	r := gin.Default()
-	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"*"}
-	r.Use(cors.New(config))
+// ResumeRequest represents the expected request body for the /new-resume endpoint
+type ResumeRequest struct {
+	ResumeName string `json:"resumeName" binding:"required"`
+}
 
-	ctx := context.Background()
-	gcloudClient, err := gcloud.NewClient(ctx)
-	if err != nil {
-		panic("could not create GCS client: " + err.Error())
-	}
-
-	r.GET("/", func(c *gin.Context) {
-		c.String(200, "hello world")
-	})
-
-	r.POST("/", func(c *gin.Context) {
-		resumeContent, err := gcloudClient.DownloadAndParseAllPDFs("user-resumes-hs-hackathon")
-		if err != nil {
-			c.JSON(500, gin.H{"success": false, "error": err.Error()})
-			return
-		}
-		fmt.Printf("resumeContent: %v\n", resumeContent)
-		jobDescription := `
+const jobDescription = `
 Job Title: Cloud Infrastructure Engineer (Entry-Level)
 Location: San Francisco, CA (Hybrid or Remote Eligible)
 Employment Type: Full-Time
@@ -91,12 +74,68 @@ Grow your cloud engineering skills through hands-on experience and mentorship.
 
 Competitive salary, equity options, and professional development opportunities.`
 
+func main() {
+	r := gin.Default()
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"*"}
+	r.Use(cors.New(config))
+
+	ctx := context.Background()
+	gcloudClient, err := gcloud.NewClient(ctx)
+	if err != nil {
+		panic("could not create GCS client: " + err.Error())
+	}
+
+	r.GET("/", func(c *gin.Context) {
+		c.String(200, "hello world")
+	})
+
+	r.POST("/new-resume", func(c *gin.Context) {
+		var req ResumeRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(400, gin.H{"success": false, "error": "Invalid request body: " + err.Error()})
+			return
+		}
+
+		resumeName := req.ResumeName
+
+		if err := gcloudClient.DownloadFile("user-resumes-hs-hackathon", resumeName, "../resumes"); err != nil {
+			c.JSON(500, gin.H{"success": false, "error": err.Error()})
+			return
+		}
+
+		resumeContent, err := parser.ReadPDF(fmt.Sprintf("../resumes/%s", resumeName))
+		if err != nil {
+			c.JSON(500, gin.H{"success": false, "error": err.Error()})
+			return
+		}
+
+		analyses, err := openai.AnalyzeResume(jobDescription, map[string]string{resumeName: resumeContent})
+		if err != nil {
+			c.JSON(500, gin.H{"success": false, "error": err.Error()})
+			return
+		}
+
+		response := gin.H{
+			"success":      true,
+			"data":         analyses,
+			"totalResumes": len(analyses),
+		}
+		c.JSON(200, response)
+	})
+
+	r.POST("/", func(c *gin.Context) {
+		resumeContent, err := gcloudClient.DownloadAndParseAllPDFs("user-resumes-hs-hackathon")
+		if err != nil {
+			c.JSON(500, gin.H{"success": false, "error": err.Error()})
+			return
+		}
+
 		analyses, err := openai.AnalyzeResume(jobDescription, resumeContent)
 		if err != nil {
 			c.JSON(500, gin.H{"success": false, "error": err.Error()})
 			return
 		}
-		fmt.Printf("analyses: %v\n", analyses)
 
 		response := gin.H{
 			"success":      true,
