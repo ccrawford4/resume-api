@@ -9,19 +9,40 @@ import (
 	"resume-api/parser"
 
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/option"
 )
 
-// ListBucketFiles fetches all file names in the specified GCS bucket
-func ListBucketFiles(bucketName string) ([]string, error) {
-	ctx := context.Background()
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create storage client: %w", err)
-	}
-	defer client.Close()
+type GoogleCloudClient struct {
+	storageClient *storage.Client
+	ctx           context.Context
+}
 
-	bucket := client.Bucket(bucketName)
-	it := bucket.Objects(ctx, nil)
+// createStorageClient creates a new storage client using service account credentials
+func NewClient(ctx context.Context) (*GoogleCloudClient, error) {
+	// Path to the service account key file
+	keyFile := "../keys.json"
+
+	// Check if the key file exists
+	if _, err := os.Stat(keyFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("service account key file not found: %s", keyFile)
+	}
+
+	// Create client with service account credentials
+	client, err := storage.NewClient(ctx, option.WithCredentialsFile(keyFile))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create storage client with service account: %w", err)
+	}
+
+	return &GoogleCloudClient{
+		storageClient: client,
+		ctx:           ctx,
+	}, nil
+}
+
+// ListBucketFiles fetches all file names in the specified GCS bucket
+func (gc *GoogleCloudClient) ListBucketFiles(bucketName string) ([]string, error) {
+	bucket := gc.storageClient.Bucket(bucketName)
+	it := bucket.Objects(gc.ctx, nil)
 
 	var files []string
 	for {
@@ -37,15 +58,8 @@ func ListBucketFiles(bucketName string) ([]string, error) {
 }
 
 // DownloadFile downloads a file from GCS to the local resumes directory
-func DownloadFile(bucketName, objectName, destDir string) error {
-	ctx := context.Background()
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create storage client: %w", err)
-	}
-	defer client.Close()
-
-	rc, err := client.Bucket(bucketName).Object(objectName).NewReader(ctx)
+func (gc *GoogleCloudClient) DownloadFile(bucketName, objectName, destDir string) error {
+	rc, err := gc.storageClient.Bucket(bucketName).Object(objectName).NewReader(gc.ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create object reader: %w", err)
 	}
@@ -65,8 +79,8 @@ func DownloadFile(bucketName, objectName, destDir string) error {
 	return nil
 }
 
-func DownloadAndParseAllPDFs(bucketName string) (map[string]string, error) {
-	files, err := ListBucketFiles(bucketName)
+func (gc *GoogleCloudClient) DownloadAndParseAllPDFs(bucketName string) (map[string]string, error) {
+	files, err := gc.ListBucketFiles(bucketName)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +88,7 @@ func DownloadAndParseAllPDFs(bucketName string) (map[string]string, error) {
 	os.MkdirAll(destDir, 0755)
 	for _, file := range files {
 		if filepath.Ext(file) == ".pdf" {
-			if err := DownloadFile(bucketName, file, destDir); err != nil {
+			if err := gc.DownloadFile(bucketName, file, destDir); err != nil {
 				fmt.Printf("Failed to download %s: %v\n", file, err)
 			}
 		}
