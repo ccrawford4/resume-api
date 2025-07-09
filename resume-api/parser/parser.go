@@ -24,7 +24,7 @@ func ParseResume() map[string]string {
 			continue
 		}
 		path := filepath.Join(resumesDir, file.Name())
-		content, err := readPdf(path)
+		content, err := ReadPDF(path)
 		if err != nil {
 			fmt.Printf("Error reading file %s: %v\n", file.Name(), err)
 			continue
@@ -35,7 +35,7 @@ func ParseResume() map[string]string {
 	return result
 }
 
-func readPdf(path string) (string, error) {
+func ReadPDF(path string) (string, error) {
 	r, err := pdf.Open(path)
 	if err != nil {
 		return "", err
