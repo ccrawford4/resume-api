@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"resume-api/gcloud"
 	"resume-api/openai"
@@ -16,12 +17,18 @@ func main() {
 	config.AllowOrigins = []string{"*"}
 	r.Use(cors.New(config))
 
+	ctx := context.Background()
+	gcloudClient, err := gcloud.NewClient(ctx)
+	if err != nil {
+		panic("could not create GCS client: " + err.Error())
+	}
+
 	r.GET("/", func(c *gin.Context) {
 		c.String(200, "hello world")
 	})
 
 	r.POST("/", func(c *gin.Context) {
-		resumeContent, err := gcloud.DownloadAndParseAllPDFs("user-resumes-hs-hackathon")
+		resumeContent, err := gcloudClient.DownloadAndParseAllPDFs("user-resumes-hs-hackathon")
 		if err != nil {
 			c.JSON(500, gin.H{"success": false, "error": err.Error()})
 			return
