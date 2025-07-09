@@ -2,41 +2,45 @@ package parser
 
 import (
 	"bytes"
-	"fmt"
-	"os"
-	"path/filepath"
+	"io"
+	"log"
 
 	"github.com/dslipak/pdf"
 )
 
-func ParseResume() map[string]string {
-	resumesDir := "../resumes"
-
-	files, err := os.ReadDir(resumesDir)
-	if err != nil {
-		fmt.Println("Error reading resumes directory:", err)
-		return map[string]string{}
-	}
-
-	result := map[string]string{}
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-		path := filepath.Join(resumesDir, file.Name())
-		content, err := ReadPDF(path)
-		if err != nil {
-			fmt.Printf("Error reading file %s: %v\n", file.Name(), err)
-			continue
-		}
-		result[file.Name()] = string(content)
-	}
-
-	return result
+type File struct {
+	Name    string
+	Content []byte
+	URL     string
 }
 
-func ReadPDF(path string) (string, error) {
-	r, err := pdf.Open(path)
+type ResumeEntry struct {
+	Content string
+	URL     string
+}
+
+// Map the name of the resume to its content and url
+type ParsedResumeResults map[string]ResumeEntry
+
+func UpdateResumeContent(files []*File) {
+	// Iterate over each file
+	for _, file := range files {
+		// Extract the content as bytes into a reader
+		reader := bytes.NewReader(file.Content)
+
+		// Parse the PDF content
+		parsedContent, err := ReadPDF(reader, int64(len(file.Content)))
+		if err != nil {
+			log.Printf("error reading PDF %s: %v", file.Name, err)
+			continue
+		}
+
+		file.Content = []byte(parsedContent) // Update the file content with parsed text
+	}
+}
+
+func ReadPDF(contentReader io.ReaderAt, size int64) (string, error) {
+	r, err := pdf.NewReader(contentReader, size)
 	if err != nil {
 		return "", err
 	}

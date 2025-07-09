@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"resume-api/gcloud"
 	"resume-api/openai"
 	"resume-api/parser"
@@ -91,26 +90,26 @@ func main() {
 	})
 
 	r.POST("/new-resume", func(c *gin.Context) {
+		// Extract the resume name from the request body
 		var req ResumeRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(400, gin.H{"success": false, "error": "Invalid request body: " + err.Error()})
 			return
 		}
-
 		resumeName := req.ResumeName
 
-		if err := gcloudClient.DownloadFile("user-resumes-hs-hackathon", resumeName, "../resumes"); err != nil {
-			c.JSON(500, gin.H{"success": false, "error": err.Error()})
-			return
-		}
-
-		resumeContent, err := parser.ReadPDF(fmt.Sprintf("../resumes/%s", resumeName))
+		// Download the resume file from GCS
+		file, err := gcloudClient.DownloadFile("user-resumes-hs-hackathon", resumeName)
 		if err != nil {
 			c.JSON(500, gin.H{"success": false, "error": err.Error()})
 			return
 		}
 
-		analyses, err := openai.AnalyzeResume(jobDescription, map[string]string{resumeName: resumeContent})
+		// Update the resume content by parsing the PDF
+		parser.UpdateResumeContent([]*parser.File{file})
+
+		// Fetch the analysis from OpenAI
+		analyses, err := openai.AnalyzeResume(jobDescription, []*parser.File{file})
 		if err != nil {
 			c.JSON(500, gin.H{"success": false, "error": err.Error()})
 			return
@@ -125,13 +124,17 @@ func main() {
 	})
 
 	r.POST("/", func(c *gin.Context) {
-		resumeContent, err := gcloudClient.DownloadAndParseAllPDFs("user-resumes-hs-hackathon")
+		fileObjects, err := gcloudClient.DownloadAllPDFs("user-resumes-hs-hackathon")
 		if err != nil {
 			c.JSON(500, gin.H{"success": false, "error": err.Error()})
 			return
 		}
 
-		analyses, err := openai.AnalyzeResume(jobDescription, resumeContent)
+		// Update the resume content
+		parser.UpdateResumeContent(fileObjects)
+
+		// Analyze the content and job description to determine a match
+		analyses, err := openai.AnalyzeResume(jobDescription, fileObjects)
 		if err != nil {
 			c.JSON(500, gin.H{"success": false, "error": err.Error()})
 			return
