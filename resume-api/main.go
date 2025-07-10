@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"resume-api/gcloud"
 	"resume-api/openai"
 	"resume-api/parser"
@@ -33,6 +34,12 @@ func main() {
 		panic("could not create GCS client: " + err.Error())
 	}
 
+	// Get bucket name from environment variable with fallback
+	bucketName := os.Getenv("GCS_BUCKET_NAME")
+	if bucketName == "" {
+		bucketName = "user-resumes-hs-hackathon" // fallback default
+	}
+
 	r.GET("/", func(c *gin.Context) {
 		c.String(200, "hello world")
 	})
@@ -47,7 +54,7 @@ func main() {
 		resumeName := req.ResumeName
 
 		// Download the resume file from GCS
-		file, err := gcloudClient.DownloadFile("user-resumes-hs-hackathon", resumeName)
+		file, err := gcloudClient.DownloadFile(bucketName, resumeName)
 		if err != nil {
 			c.JSON(500, gin.H{"success": false, "error": err.Error()})
 			return
@@ -80,7 +87,7 @@ func main() {
 		}
 
 		// Download all resume files from GCS
-		fileObjects, err := gcloudClient.DownloadAllPDFs("user-resumes-hs-hackathon")
+		fileObjects, err := gcloudClient.DownloadAllPDFs(bucketName)
 		if err != nil {
 			c.JSON(500, gin.H{"success": false, "error": err.Error()})
 			return
