@@ -22,7 +22,7 @@ A Go-based HTTP server that analyzes resumes against job descriptions using Open
 ### 1. Clone and Install Dependencies
 
 ```bash
-git clone <repository-url>
+git clone git@github.com:ccrawford4/resume-api.git
 cd resume-api
 go mod tidy
 ```
